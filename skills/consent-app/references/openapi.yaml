@@ -1,0 +1,450 @@
+components:
+  schemas:
+    model.ChoiceOption:
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+      type: object
+    model.Content:
+      properties:
+        steps:
+          items:
+            $ref: '#/components/schemas/model.Step'
+          type: array
+          uniqueItems: false
+      type: object
+    model.CreateScopedConsentRequestInput:
+      properties:
+        content:
+          $ref: '#/components/schemas/model.Content'
+        description:
+          type: string
+        shortDescription:
+          type: string
+        title:
+          type: string
+        ttlSec:
+          type: integer
+        withdrawable:
+          type: boolean
+      type: object
+    model.CreateScopedConsentRequestResponse:
+      properties:
+        createdAt:
+          type: string
+        expiresAt:
+          type: string
+        requestId:
+          type: string
+      type: object
+    model.ErrorResponse:
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      type: object
+    model.Field:
+      properties:
+        defaultChecked:
+          type: boolean
+        label:
+          type: string
+        maxLength:
+          type: integer
+        maxValue:
+          type: number
+        minValue:
+          type: number
+        note:
+          type: string
+        options:
+          items:
+            $ref: '#/components/schemas/model.ChoiceOption'
+          type: array
+          uniqueItems: false
+        placeholder:
+          type: string
+        properties:
+          items:
+            $ref: '#/components/schemas/model.FieldProperty'
+          type: array
+          uniqueItems: false
+        requireVerified:
+          description: |-
+            Only valid on ftEmail/ftPhoneNumber. Verification is a property of the value, not of
+            vault provenance — the value may be verified on the fly during the response.
+            `vaultRef` still names the save-to-vault target.
+          type: boolean
+        type:
+          $ref: '#/components/schemas/model.FieldType'
+        vaultRef:
+          $ref: '#/components/schemas/model.VaultRef'
+      type: object
+    model.FieldProperty:
+      enum:
+      - optional
+      - revocable
+      type: string
+      x-enum-varnames:
+      - FieldPropertyOptional
+      - FieldPropertyRevocable
+    model.FieldType:
+      enum:
+      - ftCheckbox
+      - ftTextInput
+      - ftMultilineTextInput
+      - ftNumberInput
+      - ftSignature
+      - ftChoice
+      - ftAddress
+      - ftDate
+      - ftPhoneNumber
+      - ftEmail
+      - ftName
+      - ftIdentityDocument
+      type: string
+      x-enum-varnames:
+      - FieldTypeCheckbox
+      - FieldTypeTextInput
+      - FieldTypeMultilineText
+      - FieldTypeNumberInput
+      - FieldTypeSignature
+      - FieldTypeChoice
+      - FieldTypeAddress
+      - FieldTypeDate
+      - FieldTypePhoneNumber
+      - FieldTypeEmail
+      - FieldTypeName
+      - FieldTypeIdentityDocument
+    model.ProvidedField:
+      properties:
+        fieldIndex:
+          type: integer
+        stepIndex:
+          type: integer
+        value:
+          $ref: '#/components/schemas/model.ProvidedValue'
+      type: object
+    model.ProvidedValue:
+      properties:
+        bool:
+          type: boolean
+        fields:
+          additionalProperties:
+            type: string
+          type: object
+        fromVault:
+          type: boolean
+        number:
+          type: number
+        objectRefs:
+          additionalProperties:
+            type: string
+          description: |-
+            Bare blob ids — never keys or bytes — keyed by logical name: "signature" for
+            ftSignature, "page1"/"page2" for ftIdentityDocument. Read via the recipient-read
+            blob endpoint.
+          type: object
+        text:
+          type: string
+        verificationStatus:
+          type: string
+      type: object
+    model.ScopedConsentResponseResponse:
+      properties:
+        response:
+          $ref: '#/components/schemas/model.ScopedConsentResponseView'
+        status:
+          enum:
+          - pending
+          - approved
+          - rejected
+          - withdrawn
+          type: string
+      type: object
+    model.ScopedConsentResponseView:
+      properties:
+        history:
+          items:
+            $ref: '#/components/schemas/model.ScopedHistoryEntry'
+          type: array
+          uniqueItems: false
+        lifecycleStatus:
+          description: |-
+            Mirrors the parent request's lifecycle while this response is pending: active,
+            closed or expired, and empty once resolved. Reports the same value /status does.
+          enum:
+          - active
+          - closed
+          - expired
+          type: string
+        requestApiKeyId:
+          type: string
+        requestExpiresAt:
+          description: The linked request's expiry, copied at the same time and for
+            the same reason.
+          type: string
+        requestId:
+          type: string
+        requestTitle:
+          description: |-
+            The linked request's title, copied at response-creation time so a client renders
+            without a second fetch.
+          type: string
+        requestUserDisplayName:
+          type: string
+        requestUserId:
+          type: string
+        requesterKind:
+          type: string
+        responseId:
+          type: string
+        responseUserDisplayName:
+          type: string
+        responseUserId:
+          type: string
+        status:
+          enum:
+          - pending
+          - approved
+          - withdrawn
+          - rejected
+          type: string
+        updatedAt:
+          type: string
+      type: object
+    model.ScopedConsentStatusResponse:
+      properties:
+        lifecycleStatus:
+          description: |-
+            Whether the request is still answerable, so a poller needs this endpoint alone.
+            Set only while Status is pending: a request keeps a lifecycle past its deadline
+            even once decided, and reporting "expired" next to an "approved" decision would
+            read as a failure.
+          enum:
+          - active
+          - closed
+          - expired
+          type: string
+        status:
+          enum:
+          - pending
+          - approved
+          - rejected
+          - withdrawn
+          type: string
+      type: object
+    model.ScopedHistoryEntry:
+      properties:
+        expiresTimestamp:
+          description: |-
+            The deadline this entry was written against, carried on a pending entry. This is the
+            request's expiry, not the time of the entry — `timestamp` is that.
+          type: string
+        providedFields:
+          description: |-
+            The answers submitted with this entry, addressed positionally into the content the
+            request was created with.
+          items:
+            $ref: '#/components/schemas/model.ProvidedField'
+          type: array
+          uniqueItems: false
+        status:
+          enum:
+          - pending
+          - approved
+          - withdrawn
+          - rejected
+          type: string
+        timestamp:
+          description: When this entry was written.
+          type: string
+      type: object
+    model.Step:
+      properties:
+        description:
+          description: Markdown
+          type: string
+        fields:
+          items:
+            $ref: '#/components/schemas/model.Field'
+          type: array
+          uniqueItems: false
+        shortDescription:
+          type: string
+        title:
+          type: string
+      type: object
+    model.VaultRef:
+      properties:
+        slot:
+          $ref: '#/components/schemas/model.VaultSlot'
+      type: object
+    model.VaultSlot:
+      enum:
+      - vsName
+      - vsAddress
+      - vsEmail
+      - vsPhoneNumber
+      - vsSignature
+      - vsDateOfBirth
+      - vsIdentityDocument
+      type: string
+      x-enum-varnames:
+      - VaultSlotName
+      - VaultSlotAddress
+      - VaultSlotEmail
+      - VaultSlotPhoneNumber
+      - VaultSlotSignature
+      - VaultSlotDateOfBirth
+      - VaultSlotIdentityDocument
+  securitySchemes:
+    ApiKeyAuth:
+      description: Plaintext user API key, shaped `cak_<region>_<secret>`. The backend
+        stores only its SHA-256 hash.
+      in: header
+      name: X-API-Key
+      type: apiKey
+externalDocs:
+  description: ""
+  url: ""
+info:
+  description: |-
+    The API-key surface of the Consent App backend: the endpoints an agent uses to ask a human for consent and to read the answer.
+    This document covers only the routes authenticated with `X-API-Key`.
+    Errors are JSON: `{"error": "<code>", "message": "<human-readable>"}`. Branch on `error` — it is a stable code — and show `message` to a person. In particular `key_revoked` and `key_expired` mean the user must issue a new key, while `missing_api_key` and `invalid_api_key` mean the caller never sent a usable one.
+    Keys are created by the user in the mobile app and scoped to that user: a key can only create requests addressed to its owner, and only read responses to requests it created itself.
+  title: Consent App API (agent surface)
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /api/consentRequests:
+    post:
+      description: |-
+        Creates a consent request addressed to the API key's owning user and pushes it to their mobile app. The recipient is implicit and is never read from the body.
+        `content` must hold 1–20 steps; a step's `fields` may be empty, which renders the title/description with no form.
+        Text limits, counted in grapheme clusters: `title` ≤ 300, `shortDescription` ≤ 1000, `description` ≤ 10000. `description` is Markdown, but links and images are refused with 400.
+        `ttlSec` is 1–300; missing, zero, negative or above 300 all fall back to 60 — an over-long value is not clamped to 300.
+        `ftSignature` and `ftIdentityDocument` are rejected with 400. The user produces both in the mobile app, but their answers are file references this API offers no way to download — asking for one would collect a file from the user that you could never read.
+      operationId: createConsentRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/model.CreateScopedConsentRequestInput'
+              description: Consent request to create
+              summary: request
+        description: Consent request to create
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.CreateScopedConsentRequestResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_required_field, invalid_request_body,
+            invalid_content, field_type_not_supported, unsupported_property
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired
+      security:
+      - ApiKeyAuth: []
+      summary: Create a consent request
+      tags:
+      - consent
+  /api/consentRequests/{id}:
+    get:
+      description: |-
+        Same authorisation as `/status`, but also returns the response document, which carries the user's answers in `response.history[]`.
+        A pending shell is pre-created when the request is created, so `response` is normally present with `status: "pending"` before any decision. The pre-create is best-effort, so a null `response` is possible and means the same thing as pending.
+        `response.lifecycleStatus` (`active`, `closed`, `expired`) mirrors what `/status` reports. It is set only while the response is pending and disappears once the user decides.
+        A provided field addresses its field positionally, by `stepIndex` and `fieldIndex` into the `content` that was sent.
+      operationId: getConsentRequestResponse
+      parameters:
+      - description: Consent request id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ScopedConsentResponseResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is not_found — the request id is unknown, or was created
+            by a different API key
+      security:
+      - ApiKeyAuth: []
+      summary: Read the full response document
+      tags:
+      - consent
+  /api/consentRequests/{id}/status:
+    get:
+      description: |-
+        Returns `pending` until the user decides in the mobile app, then mirrors that decision.
+        `lifecycleStatus` tells you whether the request is still answerable: `active` while it is, `expired` once its `expiresAt` has passed, `closed` if the user closed it. It is present only while `status` is `pending`, so `pending` plus `expired` or `closed` means the answer will never come — stop waiting and do not proceed.
+        `withdrawn` only occurs when the request was created with `withdrawable: true`.
+      operationId: getConsentRequestStatus
+      parameters:
+      - description: Consent request id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ScopedConsentStatusResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is not_found — the request id is unknown, or was created
+            by a different API key
+      security:
+      - ApiKeyAuth: []
+      summary: Poll the decision
+      tags:
+      - consent
+servers:
+- url: https://api.consent.app
