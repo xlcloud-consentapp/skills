@@ -1,1 +1,8 @@
+# Secrets — the skill auto-loads skills/consent-app/scripts/.env
+.env
+.env.*
+!.env.example
 
+# Python
+__pycache__/
+*.pyc

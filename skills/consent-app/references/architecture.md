@@ -31,11 +31,11 @@ skills/consent-app/
 ├── SKILL.md                          # Skill definition (frontmatter + instructions)
 ├── references/
 │   ├── api.md                        # Skill-relevant endpoints
-│   └── architecture.md               # This file
+│   ├── architecture.md               # This file
+│   └── openapi.yaml                  # OpenAPI 3.1 schema of those endpoints
 └── scripts/
     ├── _common.py                    # Shared HTTP helpers (urllib only)
-    ├── request_consent.py            # Per-operation: send a consent request, poll for decision
-    └── .gitignore
+    └── request_consent.py            # Per-operation: send a consent request, poll for decision
 ```
 
 No third-party dependencies — pure stdlib (`urllib`) for HTTP. The
