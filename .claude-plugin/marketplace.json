@@ -1,0 +1,11 @@
+{
+  "name": "consent-app",
+  "owner": { "name": "consent.app", "url": "https://consent.app" },
+  "plugins": [
+    {
+      "name": "consent-app",
+      "source": "./",
+      "description": "Human-in-the-loop consent gate for AI agents. Bundles the consent.app skill (skills/consent-app/)."
+    }
+  ]
+}
