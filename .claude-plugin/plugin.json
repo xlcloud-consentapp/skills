@@ -1,0 +1,8 @@
+{
+  "name": "consent-app",
+  "version": "0.1.0",
+  "description": "Request human approval through consent.app before critical agent operations (send, pay, book, post, delete, share). Bundles the consent-app skill.",
+  "author": { "name": "consent.app", "url": "https://consent.app" },
+  "homepage": "https://consent.app",
+  "keywords": ["consent", "approval", "human-in-the-loop", "workflow", "automation", "agent"]
+}
