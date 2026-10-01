@@ -6,7 +6,7 @@ Usage:
 
 The plaintext Consent App API key is read from --api-key or, if absent,
 from the CONSENT_API_KEY environment variable. The user creates this key
-in the Consent App mobile app and provides it to the skill; the skill
+in the Consent App web portal or mobile app and provides it to the skill; the skill
 never persists it and never signs the user in.
 
 Flow:
@@ -95,7 +95,8 @@ def main():
         },
     )
     if status == 401:
-        print("ERROR: API key rejected (401). The user may have revoked it.")
+        print("ERROR: API key rejected (401). It may be revoked or expired; "
+              "the user can create a new one at https://consent.app/portal/api-keys.")
         pp(data)
         sys.exit(1)
     if status != 201:
