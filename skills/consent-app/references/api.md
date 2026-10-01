@@ -12,26 +12,40 @@ explains the parts a schema cannot carry.
 ## Authentication
 
 The skill uses a **user-managed API key** exclusively. The Consent App
-user creates the key in the mobile app and provides the plaintext
-(`cak_...`) to the agent runtime — the skill never signs the user in
-and never calls `/api/keys`.
+user creates the key and provides the plaintext (`cak_...`) to the agent
+runtime — the skill never signs the user in and never calls `/api/keys`.
 
 | Method | Header | Used by |
 |--------|--------|---------|
-| User API Key | `X-API-Key: cak_<key>` | `POST /api/consentRequests`, `GET /api/consentRequests/{id}/status`, `GET /api/consentRequests/{id}` |
+| User API Key | `X-API-Key: cak_<region>_<secret>` | `POST /api/consentRequests`, `GET /api/consentRequests/{id}/status`, `GET /api/consentRequests/{id}` |
 
-The plaintext key has the shape `cak_...` (e.g. `cak_AbCd...`).
+The plaintext key has the shape `cak_<region>_<secret>`, with region `eu` or `us`
+(e.g. `cak_eu_AbCd...`). The region segment routes the call to the data region that
+owns the key; a key sent to the wrong region is `421 wrong_region`.
 
-The backend stores only the SHA-256 hash of the full plaintext — the
-plaintext is returned to
-the user exactly once at creation time and never persisted. The key is
-scoped to the user that created it: it can only create consent
-requests addressed to that user, and only read responses to requests
-the same key created.
+The backend stores only the SHA-256 hash of the full plaintext — the plaintext is
+returned to the user exactly once at creation time and never persisted. The key
+belongs to the user that created it: requests it creates are always addressed to
+that user.
 
-Key creation, listing, re-labelling, and revocation are user actions
-performed in the Consent App mobile app. They are out of scope for the
-skill.
+### Obtaining a key
+
+The user creates keys while signed in to the web portal at
+**https://consent.app/portal/api-keys** (it calls `POST /api/keys` with the user's own
+sign-in — never an agent).
+
+Creation takes a **label** (1–100 characters), **at least one scope**, and an optional
+**expiry** in `[now + 1 day, now + 2 years]` (default one year). A user may hold at most
+**10 active** keys; an eleventh is refused until one is revoked.
+
+| Scope (UI label) | Grants |
+|---|---|
+| `requests:create` ("Create requests") | `POST /api/consentRequests`, and reading the requests **this key** raised |
+| `responses:read:all` ("Receive every response") | reading **every** request the owner issued, app and portal included |
+
+The skill needs `requests:create` only. Scopes are fixed when the key is minted
+(the label is the only thing that can be changed later); a key with the wrong scopes
+is replaced. Revocation in the portal takes effect immediately.
 
 ---
 
@@ -170,12 +184,16 @@ Otherwise a decision is final and the status never changes again.
 `error` is a stable code to branch on; `message` is prose for a human and may be reworded
 at any time. Do not match on `message`.
 
-- `401` — `key_revoked` or `key_expired` mean the key is finished and the user must issue
-  a new one in the mobile app. `missing_api_key` or `invalid_api_key` mean the caller never
+- `401` — `key_revoked`, `key_expired` or `key_no_scopes` mean the key is finished and the
+  user must issue a new one in the portal. `missing_api_key` or `invalid_api_key` mean the caller never
   sent a usable key, so asking the user for a fresh one will not help — fix the call.
-- `404` — `not_found`: the request id is unknown **or** was created by a different API key.
-  Keys can only see their own requests, and the two cases are deliberately
-  indistinguishable.
+- `403` — `insufficient_scope` (on `POST /api/consentRequests`): the key does not hold
+  `requests:create`. A new key with that scope fixes it, a retry does not.
+- `404` — `not_found`: the request id is unknown **or** outside the key's reach (with
+  `requests:create` alone, a request created by a different API key). The two cases are
+  deliberately indistinguishable.
+- `421` — `wrong_region`: the key's `cak_<region>_` prefix names a different region than
+  the one that served the call.
 - `400` (on `POST /api/consentRequests`) — `missing_required_field`,
   `invalid_request_body`, `invalid_content`, `field_type_not_supported` (a field asks for
   something this API cannot carry — the message names the type) or `unsupported_property`

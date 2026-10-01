@@ -316,7 +316,7 @@ info:
     The API-key surface of the Consent App backend: the endpoints an agent uses to ask a human for consent and to read the answer.
     This document covers only the routes authenticated with `X-API-Key`.
     Errors are JSON: `{"error": "<code>", "message": "<human-readable>"}`. Branch on `error` — it is a stable code — and show `message` to a person. In particular `key_revoked` and `key_expired` mean the user must issue a new key, while `missing_api_key` and `invalid_api_key` mean the caller never sent a usable one.
-    Keys are created by the user in the mobile app and scoped to that user: a key can only create requests addressed to its owner, and only read responses to requests it created itself.
+    Keys are created by the user in the web portal and scoped to that user: a key can only create requests addressed to its owner, and only read responses to requests it created itself.
   title: Consent App API (agent surface)
   version: 1.0.0
 openapi: 3.1.0

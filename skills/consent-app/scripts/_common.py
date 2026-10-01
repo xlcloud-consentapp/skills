@@ -2,7 +2,7 @@
 
 stdlib-only (`urllib`) so the scripts have zero pip dependencies. The
 skill never authenticates as a user — the Consent App user creates an
-API key in the mobile app and provides the plaintext (`cak_...`) to the
+API key in the web portal and provides the plaintext (`cak_...`) to the
 skill via the `CONSENT_API_KEY` env var (or `--api-key` CLI arg). That
 key is the only configuration; the endpoints below are fixed.
 """
@@ -53,8 +53,9 @@ def require_api_key(cli_value: str = "") -> str:
         print(
             "ERROR: no Consent App API key provided.\n"
             "Pass --api-key <cak_...> or set CONSENT_API_KEY in the environment.\n"
-            "The user creates the key in the Consent App mobile app and gives "
-            "you the plaintext exactly once.",
+            "The user creates the key (scope \"Create requests\") at "
+            "https://consent.app/portal/api-keys; "
+            "the plaintext is shown exactly once.",
             file=sys.stderr,
         )
         sys.exit(2)
