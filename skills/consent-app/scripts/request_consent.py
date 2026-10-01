@@ -6,7 +6,7 @@ Usage:
 
 The plaintext Consent App API key is read from --api-key or, if absent,
 from the CONSENT_API_KEY environment variable. The user creates this key
-in the Consent App web portal or mobile app and provides it to the skill; the skill
+in the Consent App web portal and provides it to the skill; the skill
 never persists it and never signs the user in.
 
 Flow:

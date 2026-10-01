@@ -5,8 +5,7 @@
 The consent-app skill lets an AI agent request human approval through
 the Consent App. The agent authenticates itself with a **user-managed
 API key** (`cak_<region>_...`) that the Consent App user creates in the
-web portal (https://consent.app/portal/api-keys) or the mobile app and
-provides to the agent runtime. The skill never signs the user
+web portal (https://consent.app/portal/api-keys) and provides to the agent runtime. The skill never signs the user
 in, never creates or revokes keys, and never persists the key — it only
 exchanges the plaintext for consent decisions.
 
@@ -23,8 +22,8 @@ to that user, and reads back the requests the same key created.
 ```
 
 Key provisioning (and revocation) happens out-of-band in the Consent
-App web portal (https://consent.app/portal/api-keys) or mobile app, not
-from this skill.
+App web portal (https://consent.app/portal/api-keys), not from this
+skill.
 
 ## Skill Structure
 
@@ -42,7 +41,7 @@ skills/consent-app/
 
 No third-party dependencies — pure stdlib (`urllib`) for HTTP. The
 skill carries no user-account scripts (no signin, no key CRUD); those
-are user actions that live in the web portal and the mobile app.
+are user actions that live in the web portal.
 
 ## Configuration
 
@@ -86,7 +85,7 @@ Skill                          Consent Backend                  Mobile App
 - The plaintext shape is `cak_...` (e.g. `cak_AbCd...`). The full plaintext (prefix + random part) is what gets hashed.
 - A key is **scoped to the user that created it** — the recipient of every consent request is implicit, never accepted from the wire.
 - A key may only **read responses to requests it itself created** (`/status` and full-response endpoints return 404 for foreign request ids).
-- The backend stores only the SHA-256 hash of the plaintext. There is no way to retrieve the plaintext after creation — lost keys must be revoked and replaced from the web portal or the mobile app.
-- A key has a hard `expiresAt` set at creation. The user can also revoke it from the web portal or the mobile app. Either way the next `request_consent.py` call returns 401 and exits 1; the skill then asks the user for a fresh key.
+- The backend stores only the SHA-256 hash of the plaintext. There is no way to retrieve the plaintext after creation — lost keys must be revoked and replaced from the web portal.
+- A key has a hard `expiresAt` set at creation. The user can also revoke it from the web portal. Either way the next `request_consent.py` call returns 401 and exits 1; the skill then asks the user for a fresh key.
 
 See [`api.md`](./api.md) for the request/response details of each endpoint.

@@ -13,7 +13,7 @@ metadata:
 
 Request user consent/approval through the Consent App before proceeding with critical or destructive operations. The user receives a consent request in their mobile app and can approve or reject it.
 
-The skill talks to the Consent App backend using a **user-managed API key**: the Consent App user creates a key in the web portal or the mobile app (see [Getting an API Key](#getting-an-api-key)) and gives the plaintext (`cak_...`) to the skill. The skill never signs the user in, never persists the key, and never performs any user-account action — it only creates consent requests and reads back the user's decision. The key can be revoked from the portal or the mobile app at any time.
+The skill talks to the Consent App backend using a **user-managed API key**: the Consent App user creates a key in the web portal (see [Getting an API Key](#getting-an-api-key)) and gives the plaintext (`cak_...`) to the skill. The skill never signs the user in, never persists the key, and never performs any user-account action — it only creates consent requests and reads back the user's decision. The key can be revoked from the portal at any time.
 
 ## When to Use
 
@@ -62,7 +62,7 @@ The skill always talks to the Consent App at `https://api.consent.app`. The only
 
 The user creates the key themselves — the agent cannot mint one (key creation needs the user's own sign-in, which this skill never performs). If no key is available, walk the user through these steps:
 
-1. Sign in to the Consent App web portal at **[consent.app/portal/api-keys](https://consent.app/portal/api-keys)** (the **API Keys** page), or open the **API Keys** screen in the Consent App mobile app. Both manage the same keys.
+1. Sign in to the Consent App web portal at **[consent.app/portal/api-keys](https://consent.app/portal/api-keys)** (the **API Keys** page).
 2. Create a new key:
    - **Label** — free text, 1–100 characters, so the user can recognise it later (e.g. `"Claude agent"`).
    - **Scopes** — tick **"Create requests"** (`requests:create`). That is the only scope this skill needs: it raises consent requests and reads back the answers to the requests *this key* raised. Do **not** suggest **"Receive every response"** (`responses:read:all`) — it lets the key read every request the account issued, which this skill never needs.
@@ -109,7 +109,7 @@ The plaintext key is the only credential the skill uses.
 
 ## Key Management (Out of Scope)
 
-Creating, listing, re-labelling, and revoking API keys are **user actions** performed in the Consent App web portal or mobile app — not from this skill.
+Creating, listing, re-labelling, and revoking API keys are **user actions** performed in the Consent App web portal — not from this skill.
 
 If the user revokes the key, or it expires, the next `request_consent.py` call returns 401 and exits 1; ask the user for a new key.
 
@@ -142,7 +142,7 @@ Automated travel booking:
 - **NEVER proceed after rejection or timeout** — non-approval means full stop.
 - **ALWAYS write a precise description** — the user sees it verbatim and approves on that basis.
 - **NEVER reuse a request_id across operations** — each critical operation needs its own consent request.
-- **NEVER ask the user for their Consent App password.** The skill only ever needs the API key (`cak_...`) the user copied from the portal or mobile app.
+- **NEVER ask the user for their Consent App password.** The skill only ever needs the API key (`cak_...`) the user copied from the portal.
 - **NEVER persist the API key** beyond the agent's normal secret-storage mechanism (env var, secret manager). Do not write it to disk from this skill.
 
 ## API Reference

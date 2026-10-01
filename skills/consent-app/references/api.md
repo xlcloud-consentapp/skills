@@ -30,11 +30,9 @@ that user.
 
 ### Obtaining a key
 
-The user creates keys while signed in, in either client (both call `POST /api/keys`
-with the user's own sign-in — never an agent):
-
-- Web portal: **https://consent.app/portal/api-keys**
-- Mobile app: the **API Keys** screen
+The user creates keys while signed in to the web portal at
+**https://consent.app/portal/api-keys** (it calls `POST /api/keys` with the user's own
+sign-in — never an agent).
 
 Creation takes a **label** (1–100 characters), **at least one scope**, and an optional
 **expiry** in `[now + 1 day, now + 2 years]` (default one year). A user may hold at most
@@ -47,7 +45,7 @@ Creation takes a **label** (1–100 characters), **at least one scope**, and an 
 
 The skill needs `requests:create` only. Scopes are fixed when the key is minted
 (the label is the only thing that can be changed later); a key with the wrong scopes
-is replaced. Revocation in either client takes effect immediately.
+is replaced. Revocation in the portal takes effect immediately.
 
 ---
 
@@ -187,7 +185,7 @@ Otherwise a decision is final and the status never changes again.
 at any time. Do not match on `message`.
 
 - `401` — `key_revoked`, `key_expired` or `key_no_scopes` mean the key is finished and the
-  user must issue a new one in the portal or mobile app. `missing_api_key` or `invalid_api_key` mean the caller never
+  user must issue a new one in the portal. `missing_api_key` or `invalid_api_key` mean the caller never
   sent a usable key, so asking the user for a fresh one will not help — fix the call.
 - `403` — `insufficient_scope` (on `POST /api/consentRequests`): the key does not hold
   `requests:create`. A new key with that scope fixes it, a retry does not.
