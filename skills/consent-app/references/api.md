@@ -31,7 +31,7 @@ that user.
 ### Obtaining a key
 
 The user creates keys while signed in, in either client (both call `POST /api/keys`
-with their own Firebase session — never an agent):
+with the user's own sign-in — never an agent):
 
 - Web portal: **https://consent.app/portal/api-keys**
 - Mobile app: the **API Keys** screen
