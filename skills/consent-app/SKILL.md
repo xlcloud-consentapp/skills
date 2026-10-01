@@ -13,7 +13,7 @@ metadata:
 
 Request user consent/approval through the Consent App before proceeding with critical or destructive operations. The user receives a consent request in their mobile app and can approve or reject it.
 
-The skill talks to the Consent App backend using a **user-managed API key**: the Consent App user creates a key in the mobile app and gives the plaintext (`cak_...`) to the skill. The skill never signs the user in, never persists the key, and never performs any user-account action — it only creates consent requests and reads back the user's decision. The key can be revoked from the mobile app at any time.
+The skill talks to the Consent App backend using a **user-managed API key**: the Consent App user creates a key in the web portal or the mobile app (see [Getting an API Key](#getting-an-api-key)) and gives the plaintext (`cak_...`) to the skill. The skill never signs the user in, never persists the key, and never performs any user-account action — it only creates consent requests and reads back the user's decision. The key can be revoked from the portal or the mobile app at any time.
 
 ## When to Use
 
@@ -46,8 +46,8 @@ When in doubt: if undoing the operation requires contacting a third party, calli
 
 ## Prerequisites
 
-- A Consent App user (mobile app installed, signed in).
-- The user has created an API key in the mobile app and has provided the plaintext (`cak_...`) to the agent runtime (e.g. via `CONSENT_API_KEY` env var, a secret manager, or `--api-key` on the command line).
+- A Consent App user (mobile app installed, signed in — that is where the consent request arrives).
+- The user has created an API key with the `requests:create` scope (see [Getting an API Key](#getting-an-api-key)) and has provided the plaintext (`cak_...`) to the agent runtime (e.g. via `CONSENT_API_KEY` env var, a secret manager, or `--api-key` on the command line).
 - Python 3.9+. No pip dependencies — stdlib only.
 
 ## Configuration
@@ -57,6 +57,22 @@ The skill always talks to the Consent App at `https://api.consent.app`. The only
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CONSENT_API_KEY` | _(unset)_ | Plaintext Consent App API key, shape `cak_...`. **Required** unless passed as `--api-key`. |
+
+## Getting an API Key
+
+The user creates the key themselves — the agent cannot mint one (key creation needs the user's own sign-in, which this skill never performs). If no key is available, walk the user through these steps:
+
+1. Sign in to the Consent App web portal at **[consent.app/portal/api-keys](https://consent.app/portal/api-keys)** (the **API Keys** page), or open the **API Keys** screen in the Consent App mobile app. Both manage the same keys.
+2. Create a new key:
+   - **Label** — free text, 1–100 characters, so the user can recognise it later (e.g. `"Claude agent"`).
+   - **Scopes** — tick **"Create requests"** (`requests:create`). That is the only scope this skill needs: it raises consent requests and reads back the answers to the requests *this key* raised. Do **not** suggest **"Receive every response"** (`responses:read:all`) — it lets the key read every request the account issued, which this skill never needs.
+   - **Expiry** — optional; between 1 day and 2 years from now, default 1 year.
+3. Copy the key (`cak_eu_...` or `cak_us_...`). It is shown **exactly once**; if lost, the user creates a new one.
+4. Give it to the agent runtime — `CONSENT_API_KEY` env var, a `.env` file in the scripts directory, a secret manager, or `--api-key`.
+
+Limits: at most **10 active** (non-revoked, unexpired) keys per user — at the cap, an old key must be revoked first. Scopes cannot be changed after creation (only the label can); a key with the wrong scopes is replaced, not edited.
+
+The `cak_<region>_` prefix tells the backend which data region (EU or US) owns the key; nothing needs to be configured for it.
 
 ## Procedure: Request Consent
 
@@ -85,15 +101,17 @@ The plaintext key is the only credential the skill uses.
 ### Act on the Decision
 
 - **Exit 0 (`approved`)** → Proceed with the critical operation.
-- **Exit 1 (`rejected`/`withdrawn`/expired or closed request/timeout/API error)** → **STOP**. Do NOT proceed. Inform the user that the operation was halted. One API error is worth distinguishing for the user:
-  - `401 Unauthorized` → key was revoked or expired; ask for a fresh key.
+- **Exit 1 (`rejected`/`withdrawn`/expired or closed request/timeout/API error)** → **STOP**. Do NOT proceed. Inform the user that the operation was halted. Some API errors are worth distinguishing for the user (branch on the JSON `error` code):
+  - `401` `key_revoked` / `key_expired` / `key_no_scopes` → the key is finished; ask the user to [create a new one](#getting-an-api-key).
+  - `401` `missing_api_key` / `invalid_api_key` → no usable key was sent (typo, truncated paste, wrong variable); check what was passed before asking for a new key.
+  - `403` `insufficient_scope` → the key lacks `requests:create` (e.g. it only holds `responses:read:all`); ask for a key with **"Create requests"** ticked.
 - **Exit 2 (no API key)** → Ask the user for their Consent App API key and re-run.
 
 ## Key Management (Out of Scope)
 
-Creating, listing, re-labelling, and revoking API keys are **user actions** performed in the Consent App mobile app — not from this skill.
+Creating, listing, re-labelling, and revoking API keys are **user actions** performed in the Consent App web portal or mobile app — not from this skill.
 
-If the user revokes the key, the next `request_consent.py` call returns 401 and exits 1; ask the user for a new key.
+If the user revokes the key, or it expires, the next `request_consent.py` call returns 401 and exits 1; ask the user for a new key.
 
 ## Example Flows
 
@@ -124,7 +142,7 @@ Automated travel booking:
 - **NEVER proceed after rejection or timeout** — non-approval means full stop.
 - **ALWAYS write a precise description** — the user sees it verbatim and approves on that basis.
 - **NEVER reuse a request_id across operations** — each critical operation needs its own consent request.
-- **NEVER ask the user for their Consent App password.** The skill only ever needs the API key (`cak_...`) the user pasted from the mobile app.
+- **NEVER ask the user for their Consent App password.** The skill only ever needs the API key (`cak_...`) the user copied from the portal or mobile app.
 - **NEVER persist the API key** beyond the agent's normal secret-storage mechanism (env var, secret manager). Do not write it to disk from this skill.
 
 ## API Reference
