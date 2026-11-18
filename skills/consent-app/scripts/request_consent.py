@@ -27,7 +27,7 @@ import time
 from _common import api_call, consent_request_url, load_config, pp, require_api_key
 
 POLL_INTERVAL = 2
-DEFAULT_TTL_SEC = 300  # backend hard-caps to 300; out-of-range falls back to 60
+DEFAULT_TTL_SEC = 300  # the backend's default; it accepts up to one year and refuses more with 400
 
 
 def wait_for_decision(base_url: str, plaintext: str, request_id: str, timeout: int) -> str:
@@ -66,7 +66,8 @@ def main():
     parser.add_argument("title", help="Short title shown to the user")
     parser.add_argument("description", help="What exactly will happen if approved")
     parser.add_argument("--ttl", type=int, default=DEFAULT_TTL_SEC,
-                        help=f"Seconds the request stays open (1-300, default {DEFAULT_TTL_SEC})")
+                        help=f"Seconds the request stays open and the script waits "
+                             f"(at most one year, default {DEFAULT_TTL_SEC})")
     parser.add_argument("--api-key", default="",
                         help="Plaintext Consent App API key (cak_...). "
                              "Defaults to $CONSENT_API_KEY.")
@@ -84,14 +85,10 @@ def main():
         plaintext,
         payload={
             "title": args.title,
-            # shortDescription is the plain-text summary the mobile inbox list
-            # renders; the title doubles as it for a plain approve/reject.
-            "shortDescription": args.title,
-            "description": args.description,
             "ttlSec": args.ttl,
-            # content must carry at least one step. A field-less step renders
-            # just the title/description with no form to fill.
-            "content": {"steps": [{"title": "Consent", "fields": []}]},
+            # One step without fields: the user reads the description and
+            # approves or rejects, with no form to fill.
+            "content": {"steps": [{"description": args.description, "fields": []}]},
         },
     )
     if status == 401:

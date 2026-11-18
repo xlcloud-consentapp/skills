@@ -36,7 +36,9 @@ skills/consent-app/
 │   └── openapi.yaml                  # OpenAPI 3.1 schema of those endpoints
 └── scripts/
     ├── _common.py                    # Shared HTTP helpers (urllib only)
-    └── request_consent.py            # Per-operation: send a consent request, poll for decision
+    ├── request_consent.py            # Per-operation: send a consent request, poll for decision
+    ├── .env.example                  # Template for the optional .env (CONSENT_API_KEY)
+    └── .gitignore                    # Keeps a .env out of git when the folder is copied alone
 ```
 
 No third-party dependencies — pure stdlib (`urllib`) for HTTP. The
@@ -82,7 +84,7 @@ Skill                          Consent Backend                  Mobile App
 
 ## Key Lifecycle
 
-- The plaintext shape is `cak_...` (e.g. `cak_AbCd...`). The full plaintext (prefix + random part) is what gets hashed.
+- The plaintext shape is `cak_<region>_<secret>` (e.g. `cak_eu_AbCd...`). The full plaintext (prefix + random part) is what gets hashed.
 - A key is **scoped to the user that created it** — the recipient of every consent request is implicit, never accepted from the wire.
 - A key may only **read responses to requests it itself created** (`/status` and full-response endpoints return 404 for foreign request ids).
 - The backend stores only the SHA-256 hash of the plaintext. There is no way to retrieve the plaintext after creation — lost keys must be revoked and replaced from the web portal.

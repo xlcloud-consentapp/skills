@@ -82,14 +82,14 @@ Whenever a critical operation needs approval, run [request_consent.py](./scripts
 python ./scripts/request_consent.py "<TITLE>" "<DESCRIPTION>" [--ttl 300] [--api-key cak_...]
 ```
 
-- `<TITLE>` — short headline (e.g. `"Purchase: Nike Air Max"`)
-- `<DESCRIPTION>` — exactly what will happen if approved; the user sees this verbatim
-- `--ttl` — seconds the consent request stays open and the script waits (default 300, which is the backend maximum; the backend silently falls back to 60 if you pass an out-of-range value)
+- `<TITLE>` — short headline (e.g. `"Purchase: Nike Air Max"`); the push notification on the user's phone quotes it
+- `<DESCRIPTION>` — exactly what will happen if approved; the user sees this verbatim (Markdown allowed, no links or images)
+- `--ttl` — seconds the consent request stays open and the script waits (default 300; at most one year, a larger value is refused with 400)
 - `--api-key` — plaintext API key; defaults to `$CONSENT_API_KEY`
 
 The script:
 
-1. Calls `POST /api/consentRequests` with `X-API-Key: <plaintext>`, sending the title/description plus a minimal single-step `content`.
+1. Calls `POST /api/consentRequests` with `X-API-Key: <plaintext>`, sending the title, and the description as the text of a single step without fields.
 2. Polls `GET /api/consentRequests/{requestId}/status` (also with `X-API-Key`) until the user decides, the request stops being answerable, or the TTL elapses.
 3. Exits **0** on `approved`, **1** on any other outcome (`rejected`, `withdrawn`, an expired or closed request, timeout, API error), **2** if no API key was provided.
 

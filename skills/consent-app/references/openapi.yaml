@@ -17,9 +17,13 @@ components:
       type: object
     model.CreateScopedConsentRequestInput:
       properties:
+        allowAnonymousResponse:
+          type: boolean
         content:
           $ref: '#/components/schemas/model.Content'
         description:
+          type: string
+        expiresAt:
           type: string
         shortDescription:
           type: string
@@ -37,6 +41,39 @@ components:
         expiresAt:
           type: string
         requestId:
+          type: string
+      type: object
+    model.CreateWebhookSubscriptionInput:
+      properties:
+        events:
+          items:
+            enum:
+            - consent_response.recorded
+            type: string
+          type: array
+          uniqueItems: false
+        targetUrl:
+          type: string
+      required:
+      - events
+      - targetUrl
+      type: object
+    model.CreateWebhookSubscriptionResponse:
+      properties:
+        apiKeyId:
+          type: string
+        createdAt:
+          type: string
+        events:
+          items:
+            $ref: '#/components/schemas/model.WebhookEvent'
+          type: array
+          uniqueItems: false
+        id:
+          type: string
+        secret:
+          type: string
+        targetUrl:
           type: string
       type: object
     model.ErrorResponse:
@@ -68,6 +105,9 @@ components:
         placeholder:
           type: string
         properties:
+          description: |-
+            "optional": the field may be left empty, or an ftCheckbox unticked. Without it the
+            field is required. "revocable" is deprecated and ignored; a future version removes it.
           items:
             $ref: '#/components/schemas/model.FieldProperty'
           type: array
@@ -78,6 +118,11 @@ components:
             vault provenance — the value may be verified on the fly during the response.
             `vaultRef` still names the save-to-vault target.
           type: boolean
+        text:
+          description: |-
+            ftCheckbox only: the statement the responder confirms by ticking the box, shown
+            next to it. Plain text, at most 1000 graphemes.
+          type: string
         type:
           $ref: '#/components/schemas/model.FieldType'
         vaultRef:
@@ -153,6 +198,18 @@ components:
         verificationStatus:
           type: string
       type: object
+    model.ScopedConsentResponseListResponse:
+      properties:
+        hasMore:
+          type: boolean
+        items:
+          items:
+            $ref: '#/components/schemas/model.ScopedConsentResponseView'
+          type: array
+          uniqueItems: false
+        nextSince:
+          type: string
+      type: object
     model.ScopedConsentResponseResponse:
       properties:
         response:
@@ -168,6 +225,9 @@ components:
     model.ScopedConsentResponseView:
       properties:
         history:
+          description: |-
+            The user's decisions, oldest first; the last one is `status`. Empty while the
+            response is pending: pending is the absence of a decision, never an entry.
           items:
             $ref: '#/components/schemas/model.ScopedHistoryEntry'
           type: array
@@ -239,11 +299,6 @@ components:
       type: object
     model.ScopedHistoryEntry:
       properties:
-        expiresTimestamp:
-          description: |-
-            The deadline this entry was written against, carried on a pending entry. This is the
-            request's expiry, not the time of the entry — `timestamp` is that.
-          type: string
         providedFields:
           description: |-
             The answers submitted with this entry, addressed positionally into the content the
@@ -254,7 +309,6 @@ components:
           uniqueItems: false
         status:
           enum:
-          - pending
           - approved
           - withdrawn
           - rejected
@@ -274,6 +328,8 @@ components:
           type: array
           uniqueItems: false
         shortDescription:
+          description: 'Deprecated: no client displays it, and a future version of
+            the API removes it.'
           type: string
         title:
           type: string
@@ -301,6 +357,28 @@ components:
       - VaultSlotSignature
       - VaultSlotDateOfBirth
       - VaultSlotIdentityDocument
+    model.WebhookEvent:
+      enum:
+      - consent_response.recorded
+      type: string
+      x-enum-varnames:
+      - WebhookEventConsentResponseRecorded
+    model.WebhookSubscription:
+      properties:
+        apiKeyId:
+          type: string
+        createdAt:
+          type: string
+        events:
+          items:
+            $ref: '#/components/schemas/model.WebhookEvent'
+          type: array
+          uniqueItems: false
+        id:
+          type: string
+        targetUrl:
+          type: string
+      type: object
   securitySchemes:
     ApiKeyAuth:
       description: Plaintext user API key, shaped `cak_<region>_<secret>`. The backend
@@ -313,21 +391,38 @@ externalDocs:
   url: ""
 info:
   description: |-
-    The API-key surface of the Consent App backend: the endpoints an agent uses to ask a human for consent and to read the answer.
-    This document covers only the routes authenticated with `X-API-Key`.
-    Errors are JSON: `{"error": "<code>", "message": "<human-readable>"}`. Branch on `error` — it is a stable code — and show `message` to a person. In particular `key_revoked` and `key_expired` mean the user must issue a new key, while `missing_api_key` and `invalid_api_key` mean the caller never sent a usable one.
-    Keys are created by the user in the web portal and scoped to that user: a key can only create requests addressed to its owner, and only read responses to requests it created itself.
-  title: Consent App API (agent surface)
-  version: 1.0.0
+    The agentic interface for the consent.app backend: the endpoints an agent uses to ask a human for consent and to read the answer.
+
+    All routes are authenticated with `X-API-Key` which can be generated in the [consent app portal](https://consent.app/portal).
+
+    Errors are JSON: `{"error": "<code>", "message": "<human-readable>"}`. Branch on `error` — it is a stable code — and show `message` to a person. In particular:
+
+    - `key_revoked`, `key_expired` and `key_no_scopes` mean the user must issue a new key
+    - `missing_api_key` and `invalid_api_key` mean the caller never sent a usable one
+
+    Keys are created by the user in the web portal and scoped to that user. A key holds one or both scopes:
+
+    - `requests:create` raises requests addressed to its owner and reads back what it raised
+    - `responses:read:all` reads every request its owner issued, app and portal included
+
+    Answers can be pulled or pushed. Polling `/status` and listing `/responses` is the pull side; an event subscription (`/api/eventSubscriptions`) is the push side, calling a URL of yours as each answer lands. The deliveries carry ids only, so the two are used together — subscribe to be told when, then read through the endpoints above.
+  title: consent.app API
+  version: 1.1.1
 openapi: 3.1.0
 paths:
   /api/consentRequests:
     post:
       description: |-
         Creates a consent request addressed to the API key's owning user and pushes it to their mobile app. The recipient is implicit and is never read from the body.
-        `content` must hold 1–20 steps; a step's `fields` may be empty, which renders the title/description with no form.
+
+        `content` must hold 1–30 steps. Each step needs a `description`, `fields`, or both; a step with only a title is deprecated and a future version rejects it.
+
         Text limits, counted in grapheme clusters: `title` ≤ 300, `shortDescription` ≤ 1000, `description` ≤ 10000. `description` is Markdown, but links and images are refused with 400.
-        `ttlSec` is 1–300; missing, zero, negative or above 300 all fall back to 60 — an over-long value is not clamped to 300.
+
+        `ttlSec` and `expiresAt` are two spellings of one lifetime; sending both is `400`. Omitting both defaults to 300 seconds (5 minutes).
+
+        `ttlSec` is a positive number of seconds, at most one year; `expiresAt` is RFC3339, in the future, at most one year out. A negative `ttlSec` or an out-of-range value is `400`, never clamped.
+
         `ftSignature` and `ftIdentityDocument` are rejected with 400. The user produces both in the mobile app, but their answers are file references this API offers no way to download — asking for one would collect a file from the user that you could never read.
       operationId: createConsentRequest
       requestBody:
@@ -352,14 +447,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/model.ErrorResponse'
           description: error is one of missing_required_field, invalid_request_body,
-            invalid_content, field_type_not_supported, unsupported_property
+            invalid_content, invalid_expiry, field_type_not_supported, unsupported_property
         "401":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/model.ErrorResponse'
           description: error is one of missing_api_key, invalid_api_key, key_revoked,
-            key_expired
+            key_expired, key_no_scopes
       security:
       - ApiKeyAuth: []
       summary: Create a consent request
@@ -369,8 +464,11 @@ paths:
     get:
       description: |-
         Same authorisation as `/status`, but also returns the response document, which carries the user's answers in `response.history[]`.
+
         A pending shell is pre-created when the request is created, so `response` is normally present with `status: "pending"` before any decision. The pre-create is best-effort, so a null `response` is possible and means the same thing as pending.
+
         `response.lifecycleStatus` (`active`, `closed`, `expired`) mirrors what `/status` reports. It is set only while the response is pending and disappears once the user decides.
+
         A provided field addresses its field positionally, by `stepIndex` and `fieldIndex` into the `content` that was sent.
       operationId: getConsentRequestResponse
       parameters:
@@ -393,7 +491,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/model.ErrorResponse'
           description: error is one of missing_api_key, invalid_api_key, key_revoked,
-            key_expired
+            key_expired, key_no_scopes
         "404":
           content:
             application/json:
@@ -406,11 +504,134 @@ paths:
       summary: Read the full response document
       tags:
       - consent
+  /api/consentRequests/{id}/responses:
+    get:
+      description: |-
+        Every response to the request, whoever gave it, oldest first. The pull counterpart of the `consent_response.recorded` webhook: an integration without a callback polls this, one that missed a delivery catches up here.
+
+        Authorised like `/status`: the key must have raised the request, or hold `responses:read:all`. An unanswered request is `200` with an empty `items`.
+
+        It lists **answers**. A pending response is absent, as it is `410` on the by-id read. Responders the owner blocked and responses withdrawn by moderation are absent too.
+
+        `since` is both the poll window and the page cursor. **Treat it as opaque: pass back the `nextSince` you were given.** Every page carries one, whether or not `hasMore` is set — it is not a field of the items and cannot be derived from them. While `hasMore` is true, call again immediately; once it is false, that is where the next poll starts. `since` is inclusive, so an item can come back once more — drop what you have already handled, keyed on `(responseId, updatedAt)`.
+      operationId: listConsentResponses
+      parameters:
+      - description: Consent request id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Page size, 1–100
+        in: query
+        name: limit
+        schema:
+          default: 50
+          type: integer
+      - description: Opaque cursor, RFC 3339. Pass back the nextSince of the previous
+          page; omit for the first call
+        in: query
+        name: since
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ScopedConsentResponseListResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is invalid_parameter — malformed limit or since
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired, key_no_scopes
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is not_found — the request id is unknown, or the key
+            may not read it
+      security:
+      - ApiKeyAuth: []
+      summary: List the answers to a request
+      tags:
+      - consent
+  /api/consentRequests/{id}/responses/{responseId}:
+    get:
+      description: |-
+        Returns the response document named by `responseId`, which must belong to `id`. This is the read that follows a `consent_response.recorded` webhook delivery, whose payload is exactly this pair of ids.
+
+        Authorised like `/status`: the key must have raised the request, or hold `responses:read:all`.
+
+        A request open to several responders is read one response at a time; the webhook fires once per responder, so each delivery names the response it is about. `GET /api/consentRequests/{id}/responses` lists them.
+
+        It serves answers only: a pending response is `410` whoever gave it. Poll `/status` or `GET /{id}` for your own response instead.
+
+        Successive deliveries about one response carry the same pair of ids, and this read always reports the response as it stands now — not as it stood when the event fired. A repeated or out-of-order delivery therefore converges on the same answer.
+      operationId: getConsentResponse
+      parameters:
+      - description: Consent request id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: Consent response id, as carried by the webhook delivery
+        in: path
+        name: responseId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ScopedConsentResponseResponse'
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired, key_no_scopes
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is not_found — the request id is unknown, or the key
+            may not read it
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: 'error is gone — the request is readable but this answer is
+            not available: unknown id, not answered yet, or withdrawn by moderation'
+      security:
+      - ApiKeyAuth: []
+      summary: Read one response by id
+      tags:
+      - consent
   /api/consentRequests/{id}/status:
     get:
       description: |-
         Returns `pending` until the user decides in the mobile app, then mirrors that decision.
+
         `lifecycleStatus` tells you whether the request is still answerable: `active` while it is, `expired` once its `expiresAt` has passed, `closed` if the user closed it. It is present only while `status` is `pending`, so `pending` plus `expired` or `closed` means the answer will never come — stop waiting and do not proceed.
+
         `withdrawn` only occurs when the request was created with `withdrawable: true`.
       operationId: getConsentRequestStatus
       parameters:
@@ -433,7 +654,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/model.ErrorResponse'
           description: error is one of missing_api_key, invalid_api_key, key_revoked,
-            key_expired
+            key_expired, key_no_scopes
         "404":
           content:
             application/json:
@@ -446,5 +667,138 @@ paths:
       summary: Poll the decision
       tags:
       - consent
+  /api/eventSubscriptions:
+    get:
+      description: |-
+        Every subscription the calling key's owner holds, whichever of their keys registered it. A bare array, oldest-to-newest unspecified; an owner with none gets `[]`.
+
+        `secret` is never included — it was returned once, at creation. `apiKeyId` is, because it is the answer to what revoking a given key would take down.
+      operationId: listWebhookSubscriptions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/model.WebhookSubscription'
+                type: array
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired, key_no_scopes, unauthenticated
+      security:
+      - ApiKeyAuth: []
+      summary: List the owner's event subscriptions
+      tags:
+      - webhooks
+    post:
+      description: |-
+        Registers a target for one or more event types. The push counterpart of polling `/status`: instead of asking, you are told.
+
+        What a subscription covers follows the scope of the key it was registered with, and either scope may register one. A `responses:read:all` key is notified about **everything its owner issues**, app and portal included — there a delivery naming a `requestId` you do not recognise is normal, so filter on it and fetch only what is yours. A `requests:create`-only key is notified only about the requests **it raised itself**: app- and portal-raised ones never reach it, and every `requestId` it is handed is one of its own.
+
+        `targetUrl` must be `https` with a fully qualified domain name as its host. Rejected: `localhost`, a single-label name, a loopback / private / link-local / unspecified IP literal, and any numeric host form (`2130706433`, `0177.0.0.1`, `127.1`, `0x7f.0.0.1`).
+
+        `secret` comes back **once, here** — no other endpoint ever echoes it, the same contract as an API key's plaintext. Store it before you discard the response.
+
+        The subscription's lifetime is tied to `apiKeyId`, the key you called with: **revoking that key deletes the subscription**, and a revoked or expired key stops delivery even while the row is still listed. Register from a key you intend to keep, and expect to re-subscribe after a rotation.
+
+        `409` at 30 **deliverable** subscriptions; rows left behind by a revoked or expired key hold no slot.
+
+        Each dispatch is a `POST` to `targetUrl` carrying `{"id": "…", "type": "consent_response.recorded", "timestamp": "…", "data": {"requestId": "…", "responseId": "…"}}`. `id` is one target's delivery id — deduplicate on it. `timestamp` is when the event happened, the same on every delivery of it.
+
+        The payload is deliberately content-free: take the two ids to `GET /api/consentRequests/{id}/responses/{responseId}`, which checks your key's reach before returning the answer.
+
+        Signing follows [Standard Webhooks](https://www.standardwebhooks.com), so any verifier library for that spec accepts these deliveries unchanged. Headers:
+
+        - `webhook-id`: this delivery's id
+        - `webhook-timestamp`: unix seconds at signing — the freshness check, not the envelope's `timestamp`
+        - `webhook-signature`: `v1,` + base64 HMAC-SHA256 of `<webhook-id>.<webhook-timestamp>.<raw body>`
+
+        Two gotchas when verifying by hand. The secret is `whsec_` followed by base64, and **the HMAC key is the decoded base64, not the string** — strip the prefix and decode. And `webhook-signature` is a **space-delimited list**: compare against each element, never against the whole header, so a future secret rotation carrying two signatures needs no change from you.
+
+        Delivery is best-effort and attempted once. A network error or any non-2xx drops the event — no retry, no dead-letter, no replay endpoint. One status is not just a dropped event: **`410 Gone` deletes the subscription**, so answer it only from a target that is retired for good. Poll `GET /api/consentRequests/{id}/responses` to catch up on anything you missed.
+      operationId: createWebhookSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/model.CreateWebhookSubscriptionInput'
+              description: Target and the events it takes
+              summary: subscription
+        description: Target and the events it takes
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.CreateWebhookSubscriptionResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of invalid_request_body, missing_required_field,
+            invalid_event, invalid_target_url
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired, key_no_scopes, unauthenticated
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is limit_reached — 30 deliverable subscriptions; remove
+            one first
+      security:
+      - ApiKeyAuth: []
+      summary: Subscribe a callback URL to events
+      tags:
+      - webhooks
+  /api/eventSubscriptions/{id}:
+    delete:
+      description: |-
+        Removes a subscription and stops its deliveries.
+
+        Always `204`, with no body: a live subscription, a repeat, an id that never existed and an id belonging to someone else all answer the same. There is deliberately no `404`, so an unsubscribe whose response you never saw is safe to retry.
+      operationId: deleteWebhookSubscription
+      parameters:
+      - description: Subscription id
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Removed, or there was nothing to remove
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is missing_subscription_id
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.ErrorResponse'
+          description: error is one of missing_api_key, invalid_api_key, key_revoked,
+            key_expired, key_no_scopes, unauthenticated
+      security:
+      - ApiKeyAuth: []
+      summary: Unsubscribe
+      tags:
+      - webhooks
 servers:
 - url: https://api.consent.app
