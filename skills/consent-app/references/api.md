@@ -4,10 +4,19 @@ This document covers only the endpoints used by the **consent-app skill**.
 
 Base URL: `https://api.consent.app`.
 
-A machine-readable OpenAPI 3.1 description of these same three endpoints lives beside this
-file in [`openapi.yaml`](./openapi.yaml). It is generated from the backend handlers, so it
-is the one to check a request or response shape against; this document is the prose that
-explains the parts a schema cannot carry.
+A machine-readable OpenAPI 3.1 description lives beside this file in
+[`openapi.yaml`](./openapi.yaml). It is generated from the backend handlers, so it is the
+one to check a request or response shape against; this document is the prose that explains
+the parts a schema cannot carry.
+
+The copy beside this file is a snapshot. The backend serves the same document live at
+`https://api.consent.app/api/openapi.yaml` (and `.json`), so fetch that one to be certain it
+matches the deployment you are calling.
+
+The schema is wider than this document: it covers the whole `X-API-Key` surface, including
+the response list, the by-id response read and the event subscriptions that push answers to
+a callback URL. The skill uses none of those — it polls. Reach for them in `openapi.yaml`
+when building something that is not this skill.
 
 ## Authentication
 
@@ -59,25 +68,30 @@ Create a consent request addressed to the API key's owning user.
 ```json
 {
   "title": "Purchase: Nike Air Max",
-  "shortDescription": "Purchase: Nike Air Max",
-  "description": "Order 1× Nike Air Max 90, size 43, €149.99 from nike.com.",
   "ttlSec": 60,
-  "content": { "steps": [ { "title": "Consent", "fields": [] } ] }
+  "recipients": [ { "contactId": "me" } ],
+  "content": {
+    "steps": [
+      { "description": "Order 1× Nike Air Max 90, size 43, €149.99 from nike.com.", "fields": [] }
+    ]
+  }
 }
 ```
 
-**Required:** `title` and `content`. `content` must hold at least one step
-(`content.steps`, 1–20 of them); a step's `fields` may be absent or empty, and
-that is what the skill sends — one field-less step, which renders just the
-title/description with no form to fill.
+**Required:** `title` and `content`. `title` is the plain-text headline: the user's
+inbox lists the request under it, and the push notification quotes it. `content` holds
+1–30 steps (`content.steps`); each step needs a `description`, `fields`, or both. That is
+what the skill sends: one step whose `description` says what will happen, with no fields,
+so the user reads the text and approves or rejects.
 
-**Optional but expected:** `shortDescription` is the plain-text line the mobile
-inbox list shows, `description` the full text the user reads before deciding.
+A step's `description` is the text the user reads before deciding. A step may also carry
+a `title`, shown as its heading; with a single step it is usually left out, since the
+request's own `title` is already the headline.
 
-Text limits, counted in grapheme clusters: `title` ≤ 300, `shortDescription`
-≤ 1000, `description` ≤ 10000. `description` is Markdown (headings, bold,
-italic, underline, lists), but **links and images are refused with 400** — a
-bare URL in prose is fine and renders inert.
+Text limits, counted in grapheme clusters: `title` and a step's `title` ≤ 300, a step's
+`description` ≤ 10000. `description` is Markdown (headings, bold, italic, underline,
+lists), but **links and images are refused with 400** — a bare URL in prose is fine and
+renders inert.
 
 `ttlSec` is the lifetime in seconds — positive, at most one year. `expiresAt`
 (RFC3339, in the future, at most one year out) is the same lifetime spelled as an
@@ -98,11 +112,19 @@ To collect structured answers, populate `content.steps[].fields[]`. A field
 requires `type` and `label` (≤ 80 graphemes); `type` is one of `ftTextInput`,
 `ftMultilineTextInput`, `ftNumberInput`, `ftChoice`, `ftCheckbox`, `ftDate`,
 `ftEmail`, `ftName`, `ftAddress`, `ftPhoneNumber`. Optional
-per field: `properties` (`"optional"` and/or `"revocable"` — a field is required
-and non-revocable by default), `placeholder`, `maxLength`, `minValue`/`maxValue`,
-`options` (required for `ftChoice`), and `vaultRef` — see *Vault* below.
+per field: `properties` (`"optional"` — a field is required by default),
+`placeholder`, `maxLength`, `minValue`/`maxValue`, `options` (required for
+`ftChoice`), and `vaultRef` — see *Vault* below.
 
-The recipient is implicit — it is always the user that owns the calling API key, never accepted from the wire.
+An `ftCheckbox` is a confirmation: give it `text`, the statement the user confirms
+by ticking it (plain text, ≤ 1000 graphemes), and a `label` — `"Confirmation"` unless
+you have a better heading. Required means it must be ticked to approve; mark it
+`"optional"` when ticking is up to the user.
+
+`recipients: [{"contactId": "me"}]` delivers the request to the user that owns the calling
+API key: it lands in their inbox and their mobile app gets a push. `"me"` is the only
+recipient an API key can name. Send it whenever the key's owner is the one who decides,
+which is what the skill always does.
 
 **Response (201):**
 ```json
@@ -113,7 +135,7 @@ The recipient is implicit — it is always the user that owns the calling API ke
 }
 ```
 
-The deep link for the consent request is `https://consent.app/approve/<requestId>` (the mobile app receives a push notification regardless).
+The deep link for the consent request is `https://consent.app/approve/<requestId>`. The push notification to the key owner's mobile app quotes the request's `title`.
 
 ---
 
@@ -216,7 +238,7 @@ when you want the user's answers, not just the outcome.
     "requestId": "uuid",
     "status": "pending",
     "lifecycleStatus": "active",
-    "history": [ { "status": "pending", "timestamp": "2026-05-17T10:00:00Z" } ],
+    "history": [],
     "updatedAt": "2026-05-17T10:00:00Z"
   }
 }
@@ -225,7 +247,8 @@ when you want the user's answers, not just the outcome.
 A pending shell is created alongside the request itself, so `response` is normally present
 and undecided before the user has touched anything — it is what puts the request in their
 mobile inbox. Creating it is best-effort, so `"response": null` is still possible; read it
-as meaning exactly what a pending `status` means.
+as meaning exactly what a pending `status` means. `history` holds decisions only, so it is
+empty until the user decides.
 
 **Response (200) once mobile decided:**
 ```json
