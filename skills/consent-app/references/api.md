@@ -69,6 +69,7 @@ Create a consent request addressed to the API key's owning user.
 {
   "title": "Purchase: Nike Air Max",
   "ttlSec": 60,
+  "recipients": [ { "contactId": "me" } ],
   "content": {
     "steps": [
       { "description": "Order 1× Nike Air Max 90, size 43, €149.99 from nike.com.", "fields": [] }
@@ -120,7 +121,10 @@ by ticking it (plain text, ≤ 1000 graphemes), and a `label` — `"Confirmation
 you have a better heading. Required means it must be ticked to approve; mark it
 `"optional"` when ticking is up to the user.
 
-The recipient is implicit — it is always the user that owns the calling API key, never accepted from the wire.
+`recipients: [{"contactId": "me"}]` delivers the request to the user that owns the calling
+API key: it lands in their inbox and their mobile app gets a push. `"me"` is the only
+recipient an API key can name. Send it whenever the key's owner is the one who decides,
+which is what the skill always does.
 
 **Response (201):**
 ```json
@@ -131,7 +135,7 @@ The recipient is implicit — it is always the user that owns the calling API ke
 }
 ```
 
-The deep link for the consent request is `https://consent.app/approve/<requestId>`. The user's mobile app receives a push notification regardless, quoting the request's `title`.
+The deep link for the consent request is `https://consent.app/approve/<requestId>`. The push notification to the key owner's mobile app quotes the request's `title`.
 
 ---
 

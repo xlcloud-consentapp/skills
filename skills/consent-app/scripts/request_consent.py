@@ -86,6 +86,9 @@ def main():
         payload={
             "title": args.title,
             "ttlSec": args.ttl,
+            # "me" is the key's owner: the request lands in their inbox and their
+            # mobile app gets a push.
+            "recipients": [{"contactId": "me"}],
             # One step without fields: the user reads the description and
             # approves or rejects, with no form to fill.
             "content": {"steps": [{"description": args.description, "fields": []}]},

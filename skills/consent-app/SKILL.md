@@ -89,7 +89,7 @@ python ./scripts/request_consent.py "<TITLE>" "<DESCRIPTION>" [--ttl 300] [--api
 
 The script:
 
-1. Calls `POST /api/consentRequests` with `X-API-Key: <plaintext>`, sending the title, and the description as the text of a single step without fields.
+1. Calls `POST /api/consentRequests` with `X-API-Key: <plaintext>`, sending the title, the description as the text of a single step without fields, and `recipients: [{"contactId": "me"}]` so the request reaches you, the key's owner.
 2. Polls `GET /api/consentRequests/{requestId}/status` (also with `X-API-Key`) until the user decides, the request stops being answerable, or the TTL elapses.
 3. Exits **0** on `approved`, **1** on any other outcome (`rejected`, `withdrawn`, an expired or closed request, timeout, API error), **2** if no API key was provided.
 
